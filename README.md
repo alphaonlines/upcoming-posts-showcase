@@ -12,6 +12,8 @@ View your app in AI Studio: https://ai.studio/apps/drive/18tsXpK9W67HG0rXwervEez
 
 **Prerequisites:**  Node.js
 
+For the POS import + Postgres + API backend workflow, see `PROJECT_NOTES.md`.
+
 
 1. Install dependencies:
    `npm install`

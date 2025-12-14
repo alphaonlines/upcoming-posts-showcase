@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: pos_postgres
+    environment:
+      POSTGRES_USER: salesapp
+      POSTGRES_PASSWORD: dev_password_change_me
+      POSTGRES_DB: salesdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    restart: unless-stopped

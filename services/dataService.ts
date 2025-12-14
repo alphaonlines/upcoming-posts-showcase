@@ -1,11 +1,11 @@
 import { db, isConfigured } from './firebase';
-import { collection, getDocs, writeBatch, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 import { SalesData, StoreData, SalesPeriod } from '../types';
+import { fetchLeaderboard, fetchSalesByLocation } from "./posBackendApi";
 
 // Collection Names
 const COLL_SALES = 'sales_transactions';
-const COLL_STORES = 'stores';
 
 // Helper to get date range for filtering
 const getDateRange = (period: SalesPeriod): { startDate: string; endDate: string } => {
@@ -43,13 +43,38 @@ const getDateRange = (period: SalesPeriod): { startDate: string; endDate: string
   return { startDate: formatYMD(startDate), endDate: formatYMD(endDate) };
 };
 
-export const getSalesData = async (period: SalesPeriod): Promise<SalesData[]> => {
-  if (!db || !isConfigured) {
-    return [];
-  }
+const addDaysYmd = (ymd: string, days: number): string => {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
 
+export const getSalesData = async (period: SalesPeriod): Promise<SalesData[]> => {
   try {
     const { startDate, endDate } = getDateRange(period);
+
+    // Prefer local POS backend API when available (works even if Firebase is configured).
+    try {
+      const endExclusiveYmd = addDaysYmd(endDate, 1);
+
+      const rows = await fetchLeaderboard({ start: startDate, end: endExclusiveYmd, limit: 20 });
+
+      return rows
+        .map((r) => {
+          const profit = Number.isFinite(r.profit) ? r.profit : 0;
+          return {
+            name: r.salesperson,
+            sales: Number.isFinite(r.sales) ? r.sales : 0,
+            margin: profit,
+            itemsSold: Number.isFinite(r.lines) ? r.lines : 0,
+          };
+        })
+        .filter((r) => r.name);
+    } catch {
+      // fall back to Firebase below
+    }
+
+    if (!db || !isConfigured) return [];
     
     // Query transactions within the date range
     const q = query(
@@ -83,6 +108,7 @@ export const getSalesData = async (period: SalesPeriod): Promise<SalesData[]> =>
       name: name,
       sales: data.sales,
       margin: data.margin,
+      itemsSold: 0,
     }));
 
     return result;
@@ -93,13 +119,33 @@ export const getSalesData = async (period: SalesPeriod): Promise<SalesData[]> =>
   }
 };
 
-export const getStoreData = async (): Promise<StoreData[]> => {
-  if (!db || !isConfigured) {
-    return [];
-  }
-
+export const getStoreData = async (period: SalesPeriod): Promise<StoreData[]> => {
   try {
-    const q = query(collection(db, COLL_SALES)); // Query sales_transactions
+    // Prefer local POS backend API when available.
+    try {
+      const { startDate, endDate } = getDateRange(period);
+      const endExclusiveYmd = addDaysYmd(endDate, 1);
+
+      const rows = await fetchSalesByLocation({ start: startDate, end: endExclusiveYmd });
+      return rows
+        .map((r) => ({
+          storeName: r.location || "(unknown)",
+          revenue: Number.isFinite(r.sales) ? r.sales : 0,
+          profit: Number.isFinite(r.profit) ? r.profit : 0,
+        }))
+        .filter((r) => r.storeName);
+    } catch {
+      // fall back to Firebase below
+    }
+
+    if (!db || !isConfigured) return [];
+
+    const { startDate, endDate } = getDateRange(period);
+    const q = query(
+      collection(db, COLL_SALES),
+      where("date", ">=", startDate),
+      where("date", "<=", endDate)
+    );
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) return [];

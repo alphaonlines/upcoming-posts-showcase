@@ -1,0 +1,6 @@
+pandas
+psycopg2-binary
+openpyxl
+xlrd
+html5lib
+beautifulsoup4

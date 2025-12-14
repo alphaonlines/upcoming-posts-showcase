@@ -25,10 +25,10 @@ export const STORE_DATA: StoreData[] = [
 
 // Mock Tasks
 export const INITIAL_TASKS: Task[] = [
-  { id: '1', title: 'Update Fall Catalog Pricing', assignee: 'Sarah J.', deadline: '2023-10-25', status: TaskStatus.IN_PROGRESS, priority: 'high' },
-  { id: '2', title: 'Order Restock for Sectionals', assignee: 'Mike T.', deadline: '2023-10-28', status: TaskStatus.TODO, priority: 'medium' },
-  { id: '3', title: 'Coordinate Delivery Schedule', assignee: 'Dispatcher', deadline: '2023-10-24', status: TaskStatus.DONE, priority: 'high' },
-  { id: '4', title: 'Clean Showroom Floor', assignee: 'Cleaning Crew', deadline: '2023-10-26', status: TaskStatus.TODO, priority: 'low' },
+  { id: '1', title: 'Update Catalog Pricing', assignee: 'Sarah J.', deadline: '', status: TaskStatus.IN_PROGRESS, priority: 'high' },
+  { id: '2', title: 'Order Restock for Sectionals', assignee: 'Mike T.', deadline: '', status: TaskStatus.TODO, priority: 'medium' },
+  { id: '3', title: 'Coordinate Delivery Schedule', assignee: 'Dispatcher', deadline: '', status: TaskStatus.DONE, priority: 'high' },
+  { id: '4', title: 'Clean Showroom Floor', assignee: 'Cleaning Crew', deadline: '', status: TaskStatus.TODO, priority: 'low' },
 ];
 
 // Mock Social Posts

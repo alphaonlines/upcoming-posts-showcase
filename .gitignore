@@ -11,6 +11,18 @@ node_modules
 dist
 dist-ssr
 *.local
+__pycache__/
+*.pyc
+
+# POS backend runtime/state (do not commit)
+pos-dashboard-backend/.env
+pos-dashboard-backend/pgdata
+pos-dashboard-backend/.venv
+pos-dashboard-backend/node_modules
+pos-dashboard-backend/logs
+pos-dashboard-backend/incoming
+pos-dashboard-backend/processed
+pos-dashboard-backend/dist
 
 # Editor directories and files
 .vscode/*

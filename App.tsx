@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, CheckSquare, MessageSquare, Menu, Bell, Sofa, Search } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, MessageSquare, Menu, Bell, Sofa, Search, Activity, Star } from 'lucide-react';
 import SalesDashboard from './components/SalesDashboard';
 import TaskManager from './components/TaskManager';
 import SocialMediaHub from './components/SocialMediaHub';
@@ -61,6 +61,25 @@ const App: React.FC = () => {
             label="Social Media" 
             isActive={activeTab === Tab.SOCIAL} 
             onClick={() => setActiveTab(Tab.SOCIAL)}
+            isOpen={sidebarOpen}
+          />
+          <div className="pt-4 mt-4 border-t border-slate-800" />
+          <NavItem
+            icon={<Activity size={20} />}
+            label="AlphaPulse"
+            isActive={false}
+            href="https://alphaonlines.github.io/AlphaPulse/"
+            target="_blank"
+            rel="noreferrer"
+            isOpen={sidebarOpen}
+          />
+          <NavItem
+            icon={<Star size={20} />}
+            label="FD Connect Reviews"
+            isActive={false}
+            href="https://www.furnituredistributors.net/content/connect"
+            target="_blank"
+            rel="noreferrer"
             isOpen={sidebarOpen}
           />
         </nav>
@@ -126,26 +145,56 @@ const App: React.FC = () => {
 };
 
 // Helper Component for Navigation Items
-interface NavItemProps {
+type NavItemProps = {
   icon: React.ReactNode;
   label: string;
   isActive: boolean;
-  onClick: () => void;
   isOpen: boolean;
-}
+} & (
+  | {
+      onClick: () => void;
+      href?: never;
+      target?: never;
+      rel?: never;
+    }
+  | {
+      href: string;
+      target?: string;
+      rel?: string;
+      onClick?: never;
+    }
+);
 
-const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick, isOpen }) => {
-  return (
-    <button
-      onClick={onClick}
-      className={`
+const NavItem: React.FC<NavItemProps> = (props) => {
+  const { icon, label, isActive, isOpen } = props;
+  const className = `
         w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all
         ${isActive 
           ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
           : 'text-slate-400 hover:bg-slate-800 hover:text-white'
         }
         ${!isOpen && 'justify-center'}
-      `}
+      `;
+
+  if ('href' in props) {
+    return (
+      <a
+        href={props.href}
+        target={props.target}
+        rel={props.rel}
+        className={className}
+        title={!isOpen ? label : ''}
+      >
+        {icon}
+        {isOpen && <span className="font-medium text-sm">{label}</span>}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      onClick={props.onClick}
+      className={className}
       title={!isOpen ? label : ''}
     >
       {icon}

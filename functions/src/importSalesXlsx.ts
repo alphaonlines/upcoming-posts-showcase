@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 initializeApp();
 
 const db = getFirestore();
+const MAX_BATCH_OPS = 450;
 
 // Helper to create a URL-friendly ID from a string
 function slugify(s: string): string {
@@ -40,16 +41,38 @@ function ymdFromExcelDate(v: any): string | null {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function isSalesFolder(filePath: string): boolean {
+  return /^sales\//i.test(filePath);
+}
+
+function toSafeDocId(id: string): string {
+  // Firestore doc IDs cannot contain "/" (path separator).
+  return id.replace(/\//g, "-");
+}
+
 export const importSalesXlsx = onObjectFinalized(
-  { region: "us-central1", timeoutSeconds: 540 },
+  { region: "us-central1", timeoutSeconds: 540, retry: true },
   async (event) => {
     const obj = event.data;
     const bucketName = obj.bucket;
     const filePath = obj.name || "";
 
     try {
+      console.log("importSalesXlsx triggered", {
+        bucket: bucketName,
+        name: filePath,
+        contentType: obj.contentType,
+        size: obj.size,
+        generation: obj.generation,
+      });
+
+      if (!filePath) {
+        console.log("No object name provided. Skipping.");
+        return;
+      }
+
       // Only process files in the "sales/" folder
-      if (!filePath.startsWith("sales/")) {
+      if (!isSalesFolder(filePath)) {
         console.log(`File ${filePath} is not in the sales/ folder. Skipping.`);
         return;
       }
@@ -72,7 +95,30 @@ export const importSalesXlsx = onObjectFinalized(
 
       let batch = db.batch();
       const seenStores = new Set<string>();
+      let batchOps = 0;
       let rowCount = 0;
+      let validRowCount = 0;
+      let skippedRowCount = 0;
+      let totalWrites = 0;
+
+      if (rows.length > 0) {
+        console.log("Parsed sheet/headers", {
+          sheetName,
+          headers: Object.keys(rows[0] || {}),
+          rowCount: rows.length,
+        });
+      } else {
+        console.log(`No rows parsed from ${filePath}.`);
+      }
+
+      const commitBatch = async (reason: string) => {
+        if (batchOps === 0) return;
+        console.log(`Committing batch (${batchOps} ops) [${reason}] for ${filePath}...`);
+        await batch.commit();
+        totalWrites += batchOps;
+        batch = db.batch();
+        batchOps = 0;
+      };
 
       for (const r of rows) {
         rowCount++;
@@ -82,8 +128,10 @@ export const importSalesXlsx = onObjectFinalized(
         const salesId = (r["Sales#"] ?? "").toString().trim();
 
         if (!dateOfSale || !storeLocation || !salesId) {
+          skippedRowCount++;
           continue;
         }
+        validRowCount++;
         
         const storeId = slugify(storeLocation);
         if (storeId && !seenStores.has(storeId)) {
@@ -93,12 +141,18 @@ export const importSalesXlsx = onObjectFinalized(
             { merge: true }
           );
           seenStores.add(storeId);
+          batchOps++;
         }
 
         const salespeople = salesPersonString.split(" AND ").map((name: string) => name.trim());
         
-        const transactionRef = db.doc(`sales_transactions/${salesId}`);
+        const safeSalesId = toSafeDocId(salesId);
+        if (safeSalesId !== salesId) {
+          console.warn(`Sales# contained "/" and was normalized for Firestore doc ID: "${salesId}" -> "${safeSalesId}"`);
+        }
+        const transactionRef = db.doc(`sales_transactions/${safeSalesId}`);
         batch.set(transactionRef, {
+          salesId: salesId,
           date: dateOfSale,
           storeId: storeId,
           storeName: storeLocation,
@@ -110,36 +164,28 @@ export const importSalesXlsx = onObjectFinalized(
           sourceFile: filePath,
           updatedAt: FieldValue.serverTimestamp(),
         });
+        batchOps++;
 
-        // Commit the batch every 400 rows to stay under the 500-operation limit
-        if (rowCount % 400 === 0) {
-          try {
-            await batch.commit();
-            console.log(`Batch committed successfully for rows up to ${rowCount} in ${filePath}.`);
-          } catch (batchError) {
-            console.error(`Error committing batch for rows up to ${rowCount} in ${filePath}:`, batchError);
-          }
-          batch = db.batch(); // Start a new batch
+        if (batchOps >= MAX_BATCH_OPS) {
+          await commitBatch(`hit MAX_BATCH_OPS at row ${rowCount}`);
         }
       }
 
-      // Commit any remaining operations in the last batch
-      if (rowCount > 0 && rowCount % 400 !== 0) {
-        try {
-          await batch.commit();
-          console.log(`Final batch committed successfully for ${filePath}.`);
-        } catch (batchError) {
-          console.error(`Error committing final batch for ${filePath}:`, batchError);
-        }
-      } else if (rowCount === 0) {
-        console.log(`No rows to process from ${filePath}.`);
-      }
+      await commitBatch("final");
       
-      console.log(`Successfully processed ${rows.length} rows from ${filePath}. All batches committed.`);
+      console.log("Import complete", {
+        filePath,
+        parsedRows: rows.length,
+        processedRows: rowCount,
+        validRows: validRowCount,
+        skippedRows: skippedRowCount,
+        storesTouched: seenStores.size,
+        totalWrites,
+      });
 
     } catch (e) {
       console.error("CRITICAL ERROR during file processing:", e);
-      // We will not write to firestore anymore, just log the error.
+      throw e;
     }
   }
 );

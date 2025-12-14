@@ -30,6 +30,11 @@ export interface Task {
   deadline: string;
   status: TaskStatus;
   priority: 'low' | 'medium' | 'high';
+  sortIndex?: number;
+  createdAt?: string;
+  respondedAt?: string;
+  completedAt?: string;
+  updatedAt?: string;
 }
 
 export enum PostStatus {

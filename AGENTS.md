@@ -5,7 +5,7 @@
 - `index.html`, `index.tsx`: Vite + React entry points.
 - `App.tsx`: top-level application shell and feature composition.
 - `components/`: UI modules (PascalCase files like `SalesDashboard.tsx`).
-- `services/`: integrations and data access (`firebase.ts`, `geminiService.ts`, `dataService.ts`).
+- `services/`: integrations and data access (`posBackendApi.ts`, `tasksService.ts`, `tasksApi.ts`, `firebase.ts`, `geminiService.ts`, `dataService.ts`).
 - `functions/`: Firebase Cloud Functions (TypeScript) under `functions/src/`.
 - `constants.ts`, `types.ts`: shared constants and TypeScript types.
 
@@ -16,6 +16,50 @@ From the repo root:
 - `npm run dev`: start the Vite dev server.
 - `npm run build`: create a production build (`dist/`).
 - `npm run preview`: serve the production build locally.
+
+### POS Dashboard Backend (Postgres + Importer + API)
+
+Backend lives in `pos-dashboard-backend/` and is used by the React dashboard via HTTP.
+
+- Start Postgres (Docker):
+  - `cd pos-dashboard-backend && docker-compose up -d`
+  - If you see `permission denied ... /var/run/docker.sock`, use `sudo docker-compose up -d` or add your user to the `docker` group.
+- Apply/upgrade schema (safe to re-run):
+  - `cd pos-dashboard-backend`
+  - `psql "postgres://salesapp:dev_password_change_me@127.0.0.1:5432/salesdb" -f db/schema.sql`
+- Import POS exports:
+  - Put export files in `pos-dashboard-backend/incoming/` (supports `.xlsx` and `.xls`).
+  - Create/activate venv: `cd pos-dashboard-backend && source .venv/bin/activate`
+  - Install deps: `pip install -r importer/requirements.txt`
+  - Run import: `python importer/import_pos_xlsx.py`
+  - Re-import without moving files: `python importer/import_pos_xlsx.py --include-processed --no-move`
+  - Safety: importer stops on `sale_id` collisions across different `sale_date` unless `--allow-id-collisions` is passed (important if `Sales#` repeats across years).
+- `.xls` note:
+  - Some `.xls` exports are actually HTML tables; importer parses them and attempts to preserve `<a href>` links (e.g. Note links).
+- Start API:
+  - `cd pos-dashboard-backend && npm run dev` (defaults to `http://127.0.0.1:5055`)
+
+### Frontend ↔ Backend
+
+- Frontend defaults to the POS backend at `http://127.0.0.1:5055`; override with `VITE_POS_API_BASE_URL`.
+- If `localhost:5173` refuses to connect, Vite is configured to bind to `::` in `vite.config.ts` so both `localhost` and `127.0.0.1` should work; ensure `npm run dev` is running.
+
+### Tasks Board (Local DB)
+
+The Tasks page is a shared task board stored in the local Postgres DB via the POS backend API.
+
+- Backend storage:
+  - Table: `tasks` (created in `pos-dashboard-backend/db/schema.sql`)
+  - Endpoints:
+    - `GET /api/tasks`
+    - `POST /api/tasks`
+    - `PATCH /api/tasks/:id`
+- Frontend implementation:
+  - UI: `components/TaskManager.tsx` (drag between columns; due date can be set after marking Done)
+  - API client: `services/tasksApi.ts` (talks to POS backend)
+  - Sync/persistence: `services/tasksService.ts` (uses POS backend when available; falls back to browser `localStorage` if the backend is offline)
+- Status visibility:
+  - `components/SalesDashboard.tsx` shows POS backend connectivity + whether Tasks are using Postgres (shared) or browser-only fallback.
 
 For Cloud Functions:
 - `cd functions && npm install`: install function dependencies.
