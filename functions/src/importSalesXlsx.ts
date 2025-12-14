@@ -111,14 +111,28 @@ export const importSalesXlsx = onObjectFinalized(
           updatedAt: FieldValue.serverTimestamp(),
         });
 
+        // Commit the batch every 400 rows to stay under the 500-operation limit
         if (rowCount % 400 === 0) {
-          await batch.commit();
-          batch = db.batch();
+          try {
+            await batch.commit();
+            console.log(`Batch committed successfully for rows up to ${rowCount} in ${filePath}.`);
+          } catch (batchError) {
+            console.error(`Error committing batch for rows up to ${rowCount} in ${filePath}:`, batchError);
+          }
+          batch = db.batch(); // Start a new batch
         }
       }
 
-      if (rowCount % 400 !== 0) {
-        await batch.commit();
+      // Commit any remaining operations in the last batch
+      if (rowCount > 0 && rowCount % 400 !== 0) {
+        try {
+          await batch.commit();
+          console.log(`Final batch committed successfully for ${filePath}.`);
+        } catch (batchError) {
+          console.error(`Error committing final batch for ${filePath}:`, batchError);
+        }
+      } else if (rowCount === 0) {
+        console.log(`No rows to process from ${filePath}.`);
       }
       
       console.log(`Successfully processed ${rows.length} rows from ${filePath}. All batches committed.`);
