@@ -41,7 +41,7 @@ function ymdFromExcelDate(v: any): string | null {
 }
 
 export const importSalesXlsx = onObjectFinalized(
-  { region: "us-central1" },
+  { region: "us-central1", timeoutSeconds: 540 },
   async (event) => {
     const obj = event.data;
     const bucketName = obj.bucket;
