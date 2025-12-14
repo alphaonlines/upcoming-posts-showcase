@@ -6,24 +6,34 @@ import * as XLSX from "xlsx";
 
 initializeApp();
 
-function slugify(s: string) {
+const db = getFirestore();
+
+// Helper to create a URL-friendly ID from a string
+function slugify(s: string): string {
+  if (!s) return "";
   return s
     .toLowerCase()
     .trim()
     .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/[^a-z0-9\s-]/g, "") // Allow spaces and hyphens
+    .replace(/[\s-]+/g, "-") // Replace spaces and hyphens with a single hyphen
     .replace(/(^-|-$)/g, "");
 }
 
+// Helper to parse the specific date format "MM/DD/YYYY" from the Excel file
 function ymdFromExcelDate(v: any): string | null {
-  // Your "Date of Sale" is like "12/02/2025"
   if (!v) return null;
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  // Handle dates that are already in JS Date format
+  if (v instanceof Date) {
+    return v.toISOString().slice(0, 10);
+  }
 
+  // Handle "MM/DD/YYYY" format
   const s = String(v).trim();
   const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!m) return null;
 
+  // Reassemble into YYYY-MM-DD
   const mm = m[1].padStart(2, "0");
   const dd = m[2].padStart(2, "0");
   const yyyy = m[3];
@@ -37,105 +47,74 @@ export const importSalesXlsx = onObjectFinalized(
     const bucketName = obj.bucket;
     const filePath = obj.name || "";
 
-    // ✅ YOU used "sales/" so we watch that folder
-    if (!filePath.startsWith("sales/")) return;
+    // Only process files in the "sales/" folder
+    if (!filePath.startsWith("sales/")) {
+      console.log(`File ${filePath} is not in the sales/ folder. Skipping.`);
+      return;
+    }
 
-    // accept both .xlsx and .xls
     const lower = filePath.toLowerCase();
-    if (!(lower.endsWith(".xlsx") || lower.endsWith(".xls"))) return;
+    if (!(lower.endsWith(".xlsx") || lower.endsWith(".xls"))) {
+      console.log(`File ${filePath} is not an Excel file. Skipping.`);
+      return;
+    }
 
     const bucket = getStorage().bucket(bucketName);
     const file = bucket.file(filePath);
 
     const [buf] = await file.download();
     const wb = XLSX.read(buf, { type: "buffer" });
-
-    // Sheet name is usually like "Sales (85 rows)"
-    const sheetName =
-      wb.SheetNames.find((n) => n.toLowerCase().startsWith("sales")) ||
-      wb.SheetNames[0];
-
+    
+    // Find the sheet that starts with "Sales", or default to the first one
+    const sheetName = wb.SheetNames.find((n) => n.toLowerCase().startsWith("sales")) || wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: null });
 
-    type Agg = {
-      grossSales: number;
-      cogs: number;
-      financeFees: number;
-      profit: number;
-      orders: Set<string>;
-    };
-
-    const aggMap = new Map<string, Agg>();
+    const batch = db.batch();
+    const seenStores = new Set<string>();
 
     for (const r of rows) {
-      const date = ymdFromExcelDate(r["Date of Sale"]);
-      const locRaw = (r["Sales Location"] ?? "").toString().trim();
-      if (!date || !locRaw) continue;
+      const dateOfSale = ymdFromExcelDate(r["Date of Sale"]);
+      const storeLocation = (r["Sales Location"] ?? "").toString().trim();
+      const salesPersonString = (r["Sales Person"] ?? "Unassigned").toString().trim();
+      const salesId = (r["Sales#"] ?? "").toString().trim();
 
-      const storeId = slugify(locRaw);
+      // Skip row if essential data is missing
+      if (!dateOfSale || !storeLocation || !salesId) {
+        continue;
+      }
+      
+      const storeId = slugify(storeLocation);
+      if (storeId && !seenStores.has(storeId)) {
+        // Ensure a basic store document exists
+        batch.set(
+          db.doc(`stores/${storeId}`),
+          { name: storeLocation, active: true, updatedAt: FieldValue.serverTimestamp() },
+          { merge: true }
+        );
+        seenStores.add(storeId);
+      }
 
-      const gross = Number(r["Grand Total"] ?? 0) || 0;
-      const cogs = Number(r["Cost"] ?? 0) || 0;
-      const fee = Number(r["Finance Fee"] ?? 0) || 0;
-      const profit = Number(r["Profit"] ?? 0) || 0;
-      const salesNum = (r["Sales#"] ?? "").toString().trim();
-
-      const key = `${storeId}__${date}`;
-      const cur =
-        aggMap.get(key) || {
-          grossSales: 0,
-          cogs: 0,
-          financeFees: 0,
-          profit: 0,
-          orders: new Set<string>(),
-        };
-
-      cur.grossSales += gross;
-      cur.cogs += cogs;
-      cur.financeFees += fee;
-      cur.profit += profit;
-      if (salesNum) cur.orders.add(salesNum);
-
-      aggMap.set(key, cur);
-    }
-
-    const db = getFirestore();
-    const batch = db.batch();
-
-    for (const [key, a] of aggMap.entries()) {
-      const [storeId, date] = key.split("__");
-
-      const grossMargin = a.grossSales > 0 ? a.profit / a.grossSales : 0;
-
-      // Write daily aggregate
-      batch.set(
-        db.doc(`stores/${storeId}/daily/${date}`),
-        {
-          grossSales: Number(a.grossSales.toFixed(2)),
-          cogs: Number(a.cogs.toFixed(2)),
-          financeFees: Number(a.financeFees.toFixed(2)),
-          profit: Number(a.profit.toFixed(2)),
-          grossMargin,
-          orders: a.orders.size,
-          updatedAt: FieldValue.serverTimestamp(),
-          sourceFile: filePath,
-        },
-        { merge: true }
-      );
-
-      // Ensure store doc exists
-      batch.set(
-        db.doc(`stores/${storeId}`),
-        {
-          name: storeId,
-          active: true,
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
+      // Handle multiple salespeople in the same field
+      const salespeople = salesPersonString.split(" AND ").map((name: string) => name.trim());
+      
+      // Create a new document in 'sales_transactions' for each row
+      const transactionRef = db.doc(`sales_transactions/${salesId}`);
+      batch.set(transactionRef, {
+        date: dateOfSale,
+        storeId: storeId,
+        storeName: storeLocation,
+        salespeople: salespeople,
+        grandTotal: Number(r["Grand Total"] ?? 0) || 0,
+        cost: Number(r["Cost"] ?? 0) || 0,
+        financeFee: Number(r["Finance Fee"] ?? 0) || 0,
+        profit: Number(r["Profit"] ?? 0) || 0,
+        sourceFile: filePath,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     }
 
     await batch.commit();
+    console.log(`Processed ${rows.length} rows from ${filePath}. Batch commit successful.`);
   }
 );

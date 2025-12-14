@@ -1,36 +1,47 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, Firestore } from "firebase/firestore";
-import { getStorage, FirebaseStorage } from "firebase/storage";
-
-// --- INSTRUCTIONS FOR THE OWNER ---
-// 1. Go to console.firebase.google.com
-// 2. Create a new project (e.g., "furniture-dashboard")
-// 3. Register a web app (</> icon)
-// 4. Copy the config values below replacing the placeholders
-// 5. Go to Firestore Database in the sidebar -> Create Database -> Start in Test Mode
-// 6. Go to Storage in the sidebar -> Get Started -> Start in Test Mode
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
+// Analytics is optional + browser-only
+import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
-  // Replace these with your actual values from Firebase Console
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDcn4_ZrQRUVfYwLI0iRd32A-Vnb7S8gU4",
+  authDomain: "furniture-distributors.firebaseapp.com",
+  projectId: "furniture-distributors",
+  storageBucket: "furniture-distributors.firebasestorage.app",
+  messagingSenderId: "186176183478",
+  appId: "1:186176183478:web:535caceed0a8ee77561a17",
+  measurementId: "G-9HL3595VR6",
 };
 
 let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
 let isConfigured = false;
 
-// Check if config is actually set (simple check to see if user replaced defaults)
-if (firebaseConfig.apiKey !== "YOUR_API_KEY_HERE") {
+// Simple “is it configured” check
+const looksConfigured =
+  !!firebaseConfig.apiKey &&
+  firebaseConfig.apiKey !== "YOUR_API_KEY_HERE" &&
+  !!firebaseConfig.projectId;
+
+if (looksConfigured) {
   try {
-    const app = initializeApp(firebaseConfig);
+    // Initialize only once (or reuse if already initialized)
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
     db = getFirestore(app);
     storage = getStorage(app);
     isConfigured = true;
+
+    // Analytics: only if supported (browser env, correct context)
+    isSupported()
+      .then((ok) => {
+        if (ok) getAnalytics(app);
+      })
+      .catch(() => {
+        // ignore analytics failures
+      });
+
     console.log("Firebase initialized successfully");
   } catch (error) {
     console.error("Firebase initialization failed:", error);

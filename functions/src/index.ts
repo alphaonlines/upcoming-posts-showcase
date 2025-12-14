@@ -1,2 +1,1 @@
-
-export { importSalesXlsx } from "./importSalesXlsx";
+export * from "./importSalesXlsx";

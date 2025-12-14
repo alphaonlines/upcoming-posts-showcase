@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   ComposedChart, Line 
 } from 'recharts';
-import { getSalesData, getStoreData, seedDatabase } from '../services/dataService';
+import { getSalesData, getStoreData } from '../services/dataService'; // seedDatabase removed
 import { isConfigured, storage } from '../services/firebase';
 import { ref, uploadBytes } from 'firebase/storage';
 import { SalesPeriod, SalesData, StoreData } from '../types';
@@ -14,10 +14,8 @@ const SalesDashboard: React.FC = () => {
   const [salesData, setSalesData] = useState<SalesData[]>([]);
   const [storeData, setStoreData] = useState<StoreData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [needsSeed, setNeedsSeed] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -31,13 +29,6 @@ const SalesDashboard: React.FC = () => {
       
       setSalesData(sales);
       setStoreData(stores);
-
-      // Check if we are connected to DB but have no data
-      if (isConfigured && sales.length === 0 && stores.length === 0) {
-        setNeedsSeed(true);
-      } else {
-        setNeedsSeed(false);
-      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -48,18 +39,6 @@ const SalesDashboard: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [period]);
-
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      await seedDatabase();
-      await loadData(); // Reload data after seeding
-    } catch (e) {
-      alert("Error seeding database: " + e);
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -111,26 +90,7 @@ const SalesDashboard: React.FC = () => {
       
       {/* Configuration & Action Area */}
       {isConfigured && (
-        <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-           {needsSeed ? (
-              <div className="flex-1 bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col md:flex-row items-center gap-4">
-                <div className="p-2 bg-blue-100 text-blue-600 rounded-full">
-                  <Database size={20} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm text-slate-700 font-medium">Database empty?</p>
-                  <p className="text-xs text-slate-500">Initialize with sample data to get started.</p>
-                </div>
-                <button 
-                  onClick={handleSeed}
-                  disabled={seeding}
-                  className="px-4 py-2 bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                >
-                  {seeding ? <Loader2 size={16} className="animate-spin" /> : "Load Sample Data"}
-                </button>
-              </div>
-           ) : <div />}
-
+                  <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
            {/* POS Upload Button */}
            <div className="flex items-center gap-3">
               {uploadSuccess && (
