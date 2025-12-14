@@ -70,10 +70,12 @@ export const importSalesXlsx = onObjectFinalized(
     const ws = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: null });
 
-    const batch = db.batch();
+    let batch = db.batch();
     const seenStores = new Set<string>();
+    let rowCount = 0;
 
     for (const r of rows) {
+      rowCount++;
       const dateOfSale = ymdFromExcelDate(r["Date of Sale"]);
       const storeLocation = (r["Sales Location"] ?? "").toString().trim();
       const salesPersonString = (r["Sales Person"] ?? "Unassigned").toString().trim();
@@ -112,9 +114,19 @@ export const importSalesXlsx = onObjectFinalized(
         sourceFile: filePath,
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      // Commit the batch every 400 rows to stay under the 500-operation limit
+      if (rowCount % 400 === 0) {
+        await batch.commit();
+        batch = db.batch(); // Start a new batch
+      }
     }
 
-    await batch.commit();
-    console.log(`Processed ${rows.length} rows from ${filePath}. Batch commit successful.`);
+    // Commit any remaining operations in the last batch
+    if (rowCount % 400 !== 0) {
+      await batch.commit();
+    }
+    
+    console.log(`Processed ${rows.length} rows from ${filePath}. All batches committed.`);
   }
 );
