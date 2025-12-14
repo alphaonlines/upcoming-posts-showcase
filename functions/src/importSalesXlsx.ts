@@ -47,6 +47,19 @@ export const importSalesXlsx = onObjectFinalized(
     const bucketName = obj.bucket;
     const filePath = obj.name || "";
 
+    // Heartbeat write to test basic functionality
+    try {
+      const heartbeatRef = db.collection('function_triggers').doc();
+      await heartbeatRef.set({
+        timestamp: FieldValue.serverTimestamp(),
+        file: filePath,
+        status: 'triggered'
+      });
+    } catch (e) {
+      console.error("Heartbeat write failed:", e);
+      // We will still attempt to continue with the rest of the function
+    }
+
     // Only process files in the "sales/" folder
     if (!filePath.startsWith("sales/")) {
       console.log(`File ${filePath} is not in the sales/ folder. Skipping.`);
