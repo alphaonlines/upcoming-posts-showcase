@@ -924,7 +924,7 @@ const SalesDashboard: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{row.salesperson}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:text-blue-800">
                         <a
-                          href={`https://www.gimmethebest.net/furnituredistributors/edit/viewcart.asp?saleid=${row.saleId.padStart(5, '0')}`}
+                          href={`https://www.gimmethebest.net/furnituredistributors/online/sale_rec_502.asp?saleid=${row.saleId.padStart(5, '0')}&type=1`}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
