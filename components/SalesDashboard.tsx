@@ -919,18 +919,26 @@ const SalesDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-                {sortedLowMarginData.map((row, idx) => (
-                  <tr key={idx} className={row.marginPct !== null && row.marginPct < 10 ? "bg-red-50" : ""}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{row.salesperson}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{row.saleId}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{row.saleDate}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${row.grandTotal.toLocaleString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${row.profit.toLocaleString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                      {row.marginPct !== null ? `${row.marginPct.toFixed(1)}%` : "N/A"}
-                    </td>
-                  </tr>
-                ))}
+                  {sortedLowMarginData.map((row, idx) => (
+                    <tr key={idx} className={row.marginPct !== null && row.marginPct < 10 ? "bg-red-50" : ""}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{row.salesperson}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:text-blue-800">
+                        <a
+                          href={`https://www.gimmethebest.net/furnituredistributors/edit/viewcart.asp?saleid=${row.saleId.padStart(5, '0')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {row.saleId}
+                        </a>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{row.saleDate}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${row.grandTotal.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${row.profit.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                        {row.marginPct !== null ? `${row.marginPct.toFixed(1)}%` : "N/A"}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
