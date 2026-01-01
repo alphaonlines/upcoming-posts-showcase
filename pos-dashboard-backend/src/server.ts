@@ -223,7 +223,7 @@ app.get("/api/low-margin", async (req, res) => {
         (CASE WHEN p.profit_split IS NULL OR p.profit_split <> p.profit_split THEN 0 ELSE p.profit_split END)::numeric AS profit,
         (
           CASE
-            WHEN s.gross_margin IS NOT NULL AND s.gross_margin = s.gross_margin THEN s.gross_margin::numeric
+            WHEN s.gross_margin IS NOT NULL AND s.gross_margin = s.gross_margin THEN s.gross_margin::numeric * 100
             WHEN p.grand_total_split IS NULL OR p.grand_total_split = 0 OR p.grand_total_split <> p.grand_total_split THEN NULL
             ELSE ((CASE WHEN p.profit_split IS NULL OR p.profit_split <> p.profit_split THEN 0 ELSE p.profit_split END) / p.grand_total_split) * 100
           END
