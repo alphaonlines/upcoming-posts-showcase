@@ -253,7 +253,7 @@ const SalesDashboard: React.FC = () => {
         }
       }
 
-      const [leaderRows, locationRows, curSummary, financeSummary, prevSummary, prevFinanceSummary] = await Promise.all([
+      const [leaderRows, locationRows, curSummary, financeSummary, prevSummary, prevFinanceSummary, lowMarginRows] = await Promise.all([
         fetchLeaderboard({
           start: currentRange.start,
           end: currentRange.endExclusive,
@@ -269,6 +269,7 @@ const SalesDashboard: React.FC = () => {
         compareRange
           ? fetchFinanceSummary({ start: compareRange.start, end: compareRange.endExclusive, salesperson })
           : Promise.resolve(null),
+        fetchLowMargin({ start: currentRange.start, end: currentRange.endExclusive, limitPer: 5, limitTotal: 50, salesperson }),
       ]);
 
       setSalesData(
@@ -324,23 +325,35 @@ const SalesDashboard: React.FC = () => {
           financeBalance: Number.isFinite(prevFinanceSummary.financeBalance) ? prevFinanceSummary.financeBalance : 0,
         });
       } else {
-        setFinanceCompare({
-          financedLines: Number.isFinite(financeSummary.financedLines) ? financeSummary.financedLines : 0,
-          financedAmount: Number.isFinite(financeSummary.financedAmount) ? financeSummary.financedAmount : 0,
-          financeFee: Number.isFinite(financeSummary.financeFee) ? financeSummary.financeFee : 0,
-          financeBalance: Number.isFinite(financeSummary.financeBalance) ? financeSummary.financeBalance : 0,
-        });
-      }
+      setFinanceCompare({
+        financedLines: Number.isFinite(prevFinanceSummary?.financedLines) ? prevFinanceSummary.financedLines : 0,
+        financedAmount: Number.isFinite(prevFinanceSummary?.financedAmount) ? prevFinanceSummary.financedAmount : 0,
+        financeFee: Number.isFinite(prevFinanceSummary?.financeFee) ? prevFinanceSummary.financeFee : 0,
+        financeBalance: Number.isFinite(prevFinanceSummary?.financeBalance) ? prevFinanceSummary.financeBalance : 0,
+      });
 
+      setLowMarginData(lowMarginRows.rows);
     } catch (e) {
       console.error(e);
+      setError("Couldn’t load POS data. Confirm the backend API is running on http://127.0.0.1:5055.");
+      // Reset all data on error
       setSalesData([]);
       setStoreData([]);
       setSummary({ sales: 0, lines: 0 });
       setSummaryCompare({ sales: 0, lines: 0 });
-      setFinance({ financedLines: 0, financedAmount: 0, financeFee: 0, financeBalance: 0 });
-      setFinanceCompare({ financedLines: 0, financedAmount: 0, financeFee: 0, financeBalance: 0 });
-      setError("Couldn’t load POS data. Confirm the backend API is running on http://127.0.0.1:5055.");
+      setFinance({
+        financedLines: 0,
+        financedAmount: 0,
+        financeFee: 0,
+        financeBalance: 0,
+      });
+      setFinanceCompare({
+        financedLines: 0,
+        financedAmount: 0,
+        financeFee: 0,
+        financeBalance: 0,
+      });
+      setLowMarginData([]);
     } finally {
       setLoading(false);
     }
