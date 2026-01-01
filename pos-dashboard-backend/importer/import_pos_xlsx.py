@@ -195,6 +195,8 @@ COLMAP = {
     "Grand Total": "grand_total",
     "Store Credit Applied": "store_credit_applied",
     "Previous Paid": "previous_paid",
+    "Prev. Paid": "previous_paid",
+    "Prev Paid": "previous_paid",
     "Total Collected": "total_collected",
 
     "Total Finance AMT": "total_finance_amt",
@@ -214,6 +216,7 @@ COLMAP = {
     "Note": "note",
     "Sale Type": "sale_type",
     "Sale Status": "sale_status",
+    "Status": "sale_status",
     "City": "city",
     "State": "state",
     "Zip": "zip",
@@ -302,17 +305,36 @@ def to_num(x):
             return None
     except Exception:
         pass
-    # handle strings like "$1,234.00" or "35%"
+    # handle strings like "$1,234.00", "(1,234.00)", "1,234.00-", or "35%"
     if isinstance(x, str):
-        t = x.strip().replace("$","").replace(",","")
+        t = x.strip()
+        if t == "":
+            return None
+
+        negative = False
+        # Accounting negatives: "(123.45)"
+        if t.startswith("(") and t.endswith(")"):
+            negative = True
+            t = t[1:-1].strip()
+        # Trailing minus: "123.45-"
+        if t.endswith("-") and t[:-1].strip():
+            negative = True
+            t = t[:-1].strip()
+
+        # Remove common formatting
+        t = (
+            t.replace("$", "")
+            .replace(",", "")
+            .replace("\u00a0", " ")  # nbsp
+            .strip()
+        )
         if t.endswith("%"):
             t = t[:-1]
         if t.lower() == "nan":
             return None
-        if t == "":
-            return None
         try:
-            return float(t)
+            n = float(t)
+            return -n if negative else n
         except:
             return None
     try:
@@ -323,6 +345,19 @@ def to_num(x):
 def clean_row(df: pd.DataFrame, source_file: str) -> pd.DataFrame:
     # normalize headers
     df.columns = [str(c).strip() for c in df.columns]
+
+    # Some exports include separate before/after tax columns; merge them into the single clean columns.
+    if "Adjustments Before Tax" in df.columns or "Adjustments After Tax" in df.columns:
+        df["adjustments"] = df.get("Adjustments Before Tax", 0) + df.get("Adjustments After Tax", 0)
+    if "Addit Fees Before Tax" in df.columns or "Addit Fees After Tax" in df.columns:
+        df["additional_fees"] = df.get("Addit Fees Before Tax", 0) + df.get("Addit Fees After Tax", 0)
+
+    # Prefer a single phone field when exports provide multiple.
+    if "phone" not in df.columns:
+        if "Cell Phone" in df.columns:
+            df["phone"] = df["Cell Phone"]
+        elif "Home Phone" in df.columns:
+            df["phone"] = df["Home Phone"]
 
     # rename columns we care about
     present = {k:v for k,v in COLMAP.items() if k in df.columns}

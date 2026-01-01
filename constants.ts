@@ -39,7 +39,8 @@ export const INITIAL_POSTS: SocialPost[] = [
     content: 'Check out our new velvet sectional! It brings a touch of modern elegance to any living room. Available in Navy and Emerald. #FurnitureDistributors #InteriorDesign',
     imagePlaceholder: 'https://picsum.photos/400/400',
     status: PostStatus.PENDING_APPROVAL,
-    author: 'Marketing Team'
+    author: 'Marketing Team',
+    scheduledAt: ''
   },
   {
     id: 'p2',
@@ -47,7 +48,8 @@ export const INITIAL_POSTS: SocialPost[] = [
     content: 'Huge blowout sale this weekend at the Northside Outlet! Up to 50% off on all dining sets. Dont miss out!',
     imagePlaceholder: 'https://picsum.photos/400/300',
     status: PostStatus.APPROVED,
-    author: 'Marketing Team'
+    author: 'Marketing Team',
+    scheduledAt: ''
   },
   {
     id: 'p3',
@@ -55,6 +57,16 @@ export const INITIAL_POSTS: SocialPost[] = [
     content: '5 ways to style a coffee table for the holidays.',
     imagePlaceholder: 'https://picsum.photos/300/500',
     status: PostStatus.DRAFT,
-    author: 'Intern'
+    author: 'Intern',
+    scheduledAt: ''
+  },
+  {
+    id: 'p4',
+    platform: 'Google',
+    content: 'New arrivals are in. Stop by the showroom today and get help finding the perfect fit for your space.',
+    imagePlaceholder: 'https://picsum.photos/420/320',
+    status: PostStatus.DRAFT,
+    author: 'Marketing Team',
+    scheduledAt: ''
   }
 ];

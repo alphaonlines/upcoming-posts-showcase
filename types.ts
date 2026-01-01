@@ -46,10 +46,11 @@ export enum PostStatus {
 
 export interface SocialPost {
   id: string;
-  platform: 'Instagram' | 'Facebook' | 'Pinterest';
+  platform: 'Instagram' | 'Facebook' | 'Google' | 'Pinterest';
   content: string;
   imagePlaceholder: string;
   status: PostStatus;
   author: string;
+  scheduledAt?: string;
   feedback?: string;
 }

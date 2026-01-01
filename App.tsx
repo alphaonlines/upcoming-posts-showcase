@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { LayoutDashboard, CheckSquare, MessageSquare, Menu, Bell, Sofa, Search, Activity, Star } from 'lucide-react';
 import SalesDashboard from './components/SalesDashboard';
 import TaskManager from './components/TaskManager';
-import SocialMediaHub from './components/SocialMediaHub';
+import WorkAdvertising from './components/WorkAdvertising';
 
 enum Tab {
   OVERVIEW = 'OVERVIEW',
@@ -18,7 +18,7 @@ const App: React.FC = () => {
     switch(activeTab) {
       case Tab.OVERVIEW: return <SalesDashboard />;
       case Tab.TASKS: return <TaskManager />;
-      case Tab.SOCIAL: return <SocialMediaHub />;
+      case Tab.SOCIAL: return <WorkAdvertising />;
       default: return <SalesDashboard />;
     }
   };
@@ -58,7 +58,7 @@ const App: React.FC = () => {
           />
           <NavItem 
             icon={<MessageSquare size={20} />} 
-            label="Social Media" 
+            label="Work Advertising" 
             isActive={activeTab === Tab.SOCIAL} 
             onClick={() => setActiveTab(Tab.SOCIAL)}
             isOpen={sidebarOpen}
@@ -114,7 +114,7 @@ const App: React.FC = () => {
             <h1 className="text-xl font-semibold text-slate-800">
               {activeTab === Tab.OVERVIEW && 'Business Overview'}
               {activeTab === Tab.TASKS && 'Team Tasks'}
-              {activeTab === Tab.SOCIAL && 'Social Media Management'}
+              {activeTab === Tab.SOCIAL && 'Work Advertising'}
             </h1>
           </div>
 

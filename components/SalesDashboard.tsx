@@ -15,7 +15,6 @@ import { ref, uploadBytes } from "firebase/storage";
 import {
   CheckCircle,
   Database,
-  DollarSign,
   FileSpreadsheet,
   Loader2,
   ShoppingBag,
@@ -28,7 +27,6 @@ import {
   fetchAvailableYears,
   fetchLeaderboard,
   fetchFinanceSummary,
-  fetchLowMargin,
   fetchSalesByLocation,
   fetchSalesDaily,
   fetchSummary,
@@ -44,24 +42,7 @@ type SalespersonPoint = SalesData & {
 
 type Summary = {
   sales: number;
-  profit: number;
   lines: number;
-};
-
-type LowMarginRow = {
-  saleId: string;
-  saleDate: string;
-  salesperson: string;
-  location: string;
-  receiptNo: string;
-  customerName: string;
-  grandTotal: number;
-  profit: number;
-  marginPct: number | null;
-  totalFinanceAmt: number;
-  financeBalance: number;
-  financeFee: number;
-  rawSourceFile: string;
 };
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -147,9 +128,9 @@ const salespersonLabel = (fullName: string) => {
 const SalesDashboard: React.FC = () => {
   const [salesData, setSalesData] = useState<SalespersonPoint[]>([]);
   const [storeData, setStoreData] = useState<StoreData[]>([]);
-  const [trendData, setTrendData] = useState<Array<{ day: string; sales: number; profit: number }>>([]);
-  const [summary, setSummary] = useState<Summary>({ sales: 0, profit: 0, lines: 0 });
-  const [summaryCompare, setSummaryCompare] = useState<Summary>({ sales: 0, profit: 0, lines: 0 });
+  const [trendData, setTrendData] = useState<Array<{ day: string; sales: number }>>([]);
+  const [summary, setSummary] = useState<Summary>({ sales: 0, lines: 0 });
+  const [summaryCompare, setSummaryCompare] = useState<Summary>({ sales: 0, lines: 0 });
   const [compareMode, setCompareMode] = useState<CompareMode>("TWO_MONTHS");
   const [compareHint, setCompareHint] = useState("");
   const [availableYears, setAvailableYears] = useState<number[]>([]);
@@ -188,11 +169,6 @@ const SalesDashboard: React.FC = () => {
     financeFee: 0,
     financeBalance: 0,
   });
-  const [lowMargin, setLowMargin] = useState<{
-    totalCount: number;
-    rows: LowMarginRow[];
-  }>({ totalCount: 0, rows: [] });
-  const [lowMarginOpen, setLowMarginOpen] = useState(false);
   const [posBackendOk, setPosBackendOk] = useState<boolean | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -290,7 +266,7 @@ const SalesDashboard: React.FC = () => {
             name: salespersonLabel(r.salesperson),
             fullName: r.salesperson,
             sales: Number.isFinite(r.sales) ? r.sales : 0,
-            margin: Number.isFinite(r.profit) ? r.profit : 0,
+            margin: 0,
             itemsSold: Number.isFinite(r.lines) ? r.lines : 0,
           }))
           .filter((r) => r.fullName)
@@ -308,20 +284,17 @@ const SalesDashboard: React.FC = () => {
 
       setSummary({
         sales: Number.isFinite(curSummary.sales) ? curSummary.sales : 0,
-        profit: Number.isFinite(curSummary.profit) ? curSummary.profit : 0,
         lines: Number.isFinite(curSummary.lines) ? curSummary.lines : 0,
       });
       if (prevSummary) {
         setSummaryCompare({
           sales: Number.isFinite(prevSummary.sales) ? prevSummary.sales : 0,
-          profit: Number.isFinite(prevSummary.profit) ? prevSummary.profit : 0,
           lines: Number.isFinite(prevSummary.lines) ? prevSummary.lines : 0,
         });
       } else {
         // No comparison selected: keep charts for A and hide comparison UI bits.
         setSummaryCompare({
           sales: Number.isFinite(curSummary.sales) ? curSummary.sales : 0,
-          profit: Number.isFinite(curSummary.profit) ? curSummary.profit : 0,
           lines: Number.isFinite(curSummary.lines) ? curSummary.lines : 0,
         });
       }
@@ -352,11 +325,10 @@ const SalesDashboard: React.FC = () => {
       console.error(e);
       setSalesData([]);
       setStoreData([]);
-      setSummary({ sales: 0, profit: 0, lines: 0 });
-      setSummaryCompare({ sales: 0, profit: 0, lines: 0 });
+      setSummary({ sales: 0, lines: 0 });
+      setSummaryCompare({ sales: 0, lines: 0 });
       setFinance({ financedLines: 0, financedAmount: 0, financeFee: 0, financeBalance: 0 });
       setFinanceCompare({ financedLines: 0, financedAmount: 0, financeFee: 0, financeBalance: 0 });
-      setLowMargin({ totalCount: 0, rows: [] });
       setError("Couldn’t load POS data. Confirm the backend API is running on http://127.0.0.1:5055.");
     } finally {
       setLoading(false);
@@ -384,7 +356,6 @@ const SalesDashboard: React.FC = () => {
           .map((r) => ({
             day: String(r.day).includes("T") ? String(r.day).slice(0, 10) : String(r.day),
             sales: Number.isFinite(r.sales) ? r.sales : 0,
-            profit: Number.isFinite(r.profit) ? r.profit : 0,
           }))
       );
     } catch (e) {
@@ -393,36 +364,8 @@ const SalesDashboard: React.FC = () => {
     }
   };
 
-  const loadLowMargin = async () => {
-    const salesperson = salespersonQuery.trim() ? salespersonQuery.trim() : undefined;
-    if (!trendStart || !trendEnd) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(trendStart) || !/^\d{4}-\d{2}-\d{2}$/.test(trendEnd)) return;
-    const endExclusive = addDaysYmd(trendEnd, 1);
-
-    try {
-      const r = await fetchLowMargin({
-        start: trendStart,
-        end: endExclusive,
-        limitPer: 5,
-        limitTotal: 300,
-        salesperson,
-      });
-      setLowMargin({
-        totalCount: Number.isFinite(r.totalCount) ? r.totalCount : 0,
-        rows: r.rows,
-      });
-    } catch (e) {
-      console.error(e);
-      setLowMargin({ totalCount: 0, rows: [] });
-    }
-  };
-
   useEffect(() => {
     loadTrend();
-  }, [trendStart, trendEnd, salespersonQuery]);
-
-  useEffect(() => {
-    loadLowMargin();
   }, [trendStart, trendEnd, salespersonQuery]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -453,11 +396,9 @@ const SalesDashboard: React.FC = () => {
   };
 
   const revenuePct = pctChange(summary.sales, summaryCompare.sales);
-  const profitPct = pctChange(summary.profit, summaryCompare.profit);
   const linesPct = pctChange(summary.lines, summaryCompare.lines);
 
   const revenueUp = revenuePct >= 0;
-  const profitUp = profitPct >= 0;
   const linesUp = linesPct >= 0;
   const financePenetration = summary.lines > 0 ? (finance.financedLines / summary.lines) * 100 : 0;
   const hasCompare = compareHint.trim().length > 0;
@@ -472,20 +413,11 @@ const SalesDashboard: React.FC = () => {
   const financeBalanceUp = financeBalancePct >= 0;
 
   const avgTicket = safeDiv(summary.sales, summary.lines);
-  const avgProfitPerSale = safeDiv(summary.profit, summary.lines);
-  const marginPct = safeDiv(summary.profit, summary.sales) * 100;
-
   const avgTicketCompare = safeDiv(summaryCompare.sales, summaryCompare.lines);
-  const avgProfitPerSaleCompare = safeDiv(summaryCompare.profit, summaryCompare.lines);
-  const marginPctCompare = safeDiv(summaryCompare.profit, summaryCompare.sales) * 100;
 
   const avgTicketPct = pctChange(avgTicket, avgTicketCompare);
-  const avgProfitPerSalePct = pctChange(avgProfitPerSale, avgProfitPerSaleCompare);
-  const marginPp = marginPct - marginPctCompare;
 
   const avgTicketUp = avgTicketPct >= 0;
-  const avgProfitPerSaleUp = avgProfitPerSalePct >= 0;
-  const marginUp = marginPp >= 0;
 
   if (loading && salesData.length === 0) {
     return (
@@ -584,7 +516,7 @@ const SalesDashboard: React.FC = () => {
       )}
 
       {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500">Total Sales</p>
@@ -599,23 +531,6 @@ const SalesDashboard: React.FC = () => {
           </div>
           <div className="p-3 bg-blue-50 rounded-full text-blue-600">
             <ShoppingBag size={24} />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-500">Total Profit</p>
-            <h3 className="text-2xl font-bold text-slate-800">${summary.profit.toLocaleString()}</h3>
-            {hasCompare && (
-              <div className={`flex items-center text-sm mt-1 ${profitUp ? "text-green-600" : "text-red-500"}`}>
-                {profitUp ? <TrendingUp size={16} className="mr-1" /> : <TrendingDown size={16} className="mr-1" />}
-                <span className="font-medium">{Math.abs(profitPct).toFixed(1)}%</span>
-                <span className="text-slate-400 ml-1">{compareHint}</span>
-              </div>
-            )}
-          </div>
-          <div className="p-3 bg-indigo-50 rounded-full text-indigo-600">
-            <DollarSign size={24} />
           </div>
         </div>
 
@@ -788,7 +703,7 @@ const SalesDashboard: React.FC = () => {
       </div>
 
       {/* Extra KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <p className="text-sm font-medium text-slate-500">Average Ticket</p>
           <h3 className="text-2xl font-bold text-slate-800">${avgTicket.toLocaleString(undefined, { maximumFractionDigits: 0 })}</h3>
@@ -801,30 +716,6 @@ const SalesDashboard: React.FC = () => {
             </div>
           )}
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <p className="text-sm font-medium text-slate-500">Margin %</p>
-          <h3 className="text-2xl font-bold text-slate-800">{marginPct.toFixed(1)}%</h3>
-          <p className="text-sm text-slate-400 mt-1">Profit ÷ sales (A)</p>
-          {hasCompare && (
-            <div className={`flex items-center text-sm mt-2 ${marginUp ? "text-green-600" : "text-red-500"}`}>
-              {marginUp ? <TrendingUp size={16} className="mr-1" /> : <TrendingDown size={16} className="mr-1" />}
-              <span className="font-medium">{Math.abs(marginPp).toFixed(1)}pp</span>
-              <span className="text-slate-400 ml-1">{compareHint}</span>
-            </div>
-          )}
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <p className="text-sm font-medium text-slate-500">Avg Profit / Sale</p>
-          <h3 className="text-2xl font-bold text-slate-800">${avgProfitPerSale.toLocaleString(undefined, { maximumFractionDigits: 0 })}</h3>
-          <p className="text-sm text-slate-400 mt-1">Profit ÷ transactions (A)</p>
-          {hasCompare && (
-            <div className={`flex items-center text-sm mt-2 ${avgProfitPerSaleUp ? "text-green-600" : "text-red-500"}`}>
-              {avgProfitPerSaleUp ? <TrendingUp size={16} className="mr-1" /> : <TrendingDown size={16} className="mr-1" />}
-              <span className="font-medium">{Math.abs(avgProfitPerSalePct).toFixed(1)}%</span>
-              <span className="text-slate-400 ml-1">{compareHint}</span>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Main Charts Row */}
@@ -833,7 +724,7 @@ const SalesDashboard: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <div className="mb-6">
             <h3 className="text-lg font-bold text-slate-800">Salesperson Performance</h3>
-            <p className="text-sm text-slate-500">Revenue vs Profit by Associate</p>
+            <p className="text-sm text-slate-500">Revenue by associate</p>
           </div>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -860,14 +751,6 @@ const SalesDashboard: React.FC = () => {
                 />
                 <Legend iconType="circle" />
                 <Bar dataKey="sales" name="Total Sales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={30} />
-                <Line
-                  type="monotone"
-                  dataKey="margin"
-                  name="Profit"
-                  stroke="#10b981"
-                  strokeWidth={3}
-                  dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
-                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -877,7 +760,7 @@ const SalesDashboard: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <div className="mb-6">
             <h3 className="text-lg font-bold text-slate-800">Store Performance</h3>
-            <p className="text-sm text-slate-500">Revenue and profit by location</p>
+            <p className="text-sm text-slate-500">Revenue by location</p>
           </div>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -903,7 +786,6 @@ const SalesDashboard: React.FC = () => {
                 />
                 <Legend />
                 <Bar dataKey="revenue" name="Revenue" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={20} />
-                <Bar dataKey="profit" name="Profit" fill="#a5b4fc" radius={[0, 4, 4, 0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -966,7 +848,6 @@ const SalesDashboard: React.FC = () => {
               />
               <Legend iconType="circle" />
               <Line type="monotone" dataKey="sales" name="Sales" stroke="#3b82f6" strokeWidth={3} dot={false} />
-              <Line type="monotone" dataKey="profit" name="Profit" stroke="#10b981" strokeWidth={3} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -982,64 +863,8 @@ const SalesDashboard: React.FC = () => {
             placeholder="Search salesperson (e.g. Lynn, Underwood)…"
             className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
           />
-          <div className="mt-1 text-xs text-slate-500">Applies to totals, charts, trend, and low-margin results.</div>
+          <div className="mt-1 text-xs text-slate-500">Applies to totals, charts, and trend.</div>
         </div>
-      </div>
-
-      {/* Lowest margin tickets */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-bold text-slate-800">Lowest Margin Tickets</h3>
-            <p className="text-sm text-slate-500">
-              Lowest 5 margin % tickets per salesperson for {trendStart} → {trendEnd} (uses the Sales Trend range).
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setLowMarginOpen((v) => !v)}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-medium shadow-sm transition-colors"
-          >
-            {lowMarginOpen ? "Hide" : "Show"} ({lowMargin.totalCount})
-          </button>
-        </div>
-
-        {lowMarginOpen && (
-          <div className="mt-4 overflow-x-auto">
-            {lowMargin.rows.length === 0 ? (
-              <div className="text-sm text-slate-500">No low-margin results (or not enough rows).</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-500 border-b">
-                    <th className="py-2 pr-3">Date</th>
-                    <th className="py-2 pr-3">Salesperson</th>
-                    <th className="py-2 pr-3">Location</th>
-                    <th className="py-2 pr-3">Sale ID</th>
-                    <th className="py-2 pr-3">Sales</th>
-                    <th className="py-2 pr-3">Profit</th>
-                    <th className="py-2 pr-3">Margin %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lowMargin.rows.map((r) => (
-                    <tr key={`${r.saleId}-${r.saleDate}-${r.salesperson}`} className="border-b last:border-b-0">
-                      <td className="py-2 pr-3 whitespace-nowrap">{String(r.saleDate).slice(0, 10)}</td>
-                      <td className="py-2 pr-3">{r.salesperson}</td>
-                      <td className="py-2 pr-3">{r.location}</td>
-                      <td className="py-2 pr-3 font-mono text-xs">{r.saleId}</td>
-                      <td className="py-2 pr-3 whitespace-nowrap">${Number(r.grandTotal).toLocaleString()}</td>
-                      <td className="py-2 pr-3 whitespace-nowrap">${Number(r.profit).toLocaleString()}</td>
-                      <td className="py-2 pr-3 whitespace-nowrap">
-                        {r.marginPct === null || !Number.isFinite(r.marginPct) ? "—" : `${Number(r.marginPct).toFixed(1)}%`}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
