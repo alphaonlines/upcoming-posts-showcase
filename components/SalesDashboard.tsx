@@ -325,12 +325,13 @@ const SalesDashboard: React.FC = () => {
           financeBalance: Number.isFinite(prevFinanceSummary.financeBalance) ? prevFinanceSummary.financeBalance : 0,
         });
       } else {
-      setFinanceCompare({
-        financedLines: Number.isFinite(prevFinanceSummary?.financedLines) ? prevFinanceSummary.financedLines : 0,
-        financedAmount: Number.isFinite(prevFinanceSummary?.financedAmount) ? prevFinanceSummary.financedAmount : 0,
-        financeFee: Number.isFinite(prevFinanceSummary?.financeFee) ? prevFinanceSummary.financeFee : 0,
-        financeBalance: Number.isFinite(prevFinanceSummary?.financeBalance) ? prevFinanceSummary.financeBalance : 0,
-      });
+        setFinanceCompare({
+          financedLines: Number.isFinite(financeSummary.financedLines) ? financeSummary.financedLines : 0,
+          financedAmount: Number.isFinite(financeSummary.financedAmount) ? financeSummary.financedAmount : 0,
+          financeFee: Number.isFinite(financeSummary.financeFee) ? financeSummary.financeFee : 0,
+          financeBalance: Number.isFinite(financeSummary.financeBalance) ? financeSummary.financeBalance : 0,
+        });
+      }
 
       setLowMarginData(lowMarginRows.rows);
     } catch (e) {
