@@ -179,6 +179,7 @@ const SalesDashboard: React.FC = () => {
     profit: number;
     marginPct: number | null;
   }>>([]);
+  const [lowMarginSort, setLowMarginSort] = useState<{ column: string; direction: 'asc' | 'desc' }>({ column: 'marginPct', direction: 'asc' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -333,7 +334,19 @@ const SalesDashboard: React.FC = () => {
         });
       }
 
-      setLowMarginData(lowMarginRows.rows);
+      setLowMarginData(lowMarginRows.rows.sort((a, b) => {
+        const aVal = a[lowMarginSort.column as keyof typeof a];
+        const bVal = b[lowMarginSort.column as keyof typeof b];
+        let cmp = 0;
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          cmp = aVal.localeCompare(bVal);
+        } else if (typeof aVal === 'number' && typeof bVal === 'number') {
+          cmp = aVal - bVal;
+        } else if (aVal === null || bVal === null) {
+          cmp = aVal === null ? (bVal === null ? 0 : 1) : -1;
+        }
+        return lowMarginSort.direction === 'asc' ? cmp : -cmp;
+      }));
     } catch (e) {
       console.error(e);
       setError("Couldn’t load POS data. Confirm the backend API is running on http://127.0.0.1:5055.");
@@ -881,20 +894,24 @@ const SalesDashboard: React.FC = () => {
       {/* Lowest Margins per Salesperson */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
         <div className="mb-6">
-    <h3 className="text-lg font-bold text-slate-800">Lowest Margins per Salesperson</h3>
-    <p className="text-sm text-slate-500">Top 5 lowest margin sales per associate (by selected period)</p>
+          <h3 className="text-lg font-bold text-slate-800">Lowest Margins per Salesperson</h3>
+          <p className="text-sm text-slate-500">Top 5 lowest margin sales per associate (by selected period) - Click headers to sort</p>
         </div>
         {lowMarginData.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Salesperson</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100" onClick={() => setLowMarginSort(prev => ({ column: 'salesperson', direction: prev.column === 'salesperson' && prev.direction === 'asc' ? 'desc' : 'asc' }))}>
+                    Salesperson {lowMarginSort.column === 'salesperson' && (lowMarginSort.direction === 'asc' ? '↑' : '↓')}
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Sale ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Total</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Profit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Margin %</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100" onClick={() => setLowMarginSort(prev => ({ column: 'marginPct', direction: prev.column === 'marginPct' && prev.direction === 'asc' ? 'desc' : 'asc' }))}>
+                    Margin % {lowMarginSort.column === 'marginPct' && (lowMarginSort.direction === 'asc' ? '↑' : '↓')}
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
