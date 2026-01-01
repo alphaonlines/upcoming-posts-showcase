@@ -27,6 +27,7 @@ import {
   fetchAvailableYears,
   fetchLeaderboard,
   fetchFinanceSummary,
+  fetchLowMargin,
   fetchSalesByLocation,
   fetchSalesDaily,
   fetchSummary,
@@ -170,6 +171,14 @@ const SalesDashboard: React.FC = () => {
     financeBalance: 0,
   });
   const [posBackendOk, setPosBackendOk] = useState<boolean | null>(null);
+  const [lowMarginData, setLowMarginData] = useState<Array<{
+    saleId: string;
+    saleDate: string;
+    salesperson: string;
+    grandTotal: number;
+    profit: number;
+    marginPct: number | null;
+  }>>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -186,6 +195,19 @@ const SalesDashboard: React.FC = () => {
       window.clearInterval(id);
     };
   }, []);
+
+  useEffect(() => {
+    if (!posBackendOk) return;
+    fetchLowMargin({
+      start: yearA ? getYearRange(yearA).start : "2024-01-01",
+      end: yearA ? getYearRange(yearA).endExclusive : "2025-01-01",
+      limitPer: 5,
+      limitTotal: 50,
+      salesperson: salespersonQuery || undefined,
+    })
+      .then((data) => setLowMarginData(data.rows))
+      .catch(() => {});
+  }, [posBackendOk, yearA, salespersonQuery]);
 
   useEffect(() => {
     fetchAvailableYears()
@@ -851,6 +873,46 @@ const SalesDashboard: React.FC = () => {
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      {/* Lowest Margins per Salesperson */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-slate-800">Lowest Margins per Salesperson</h3>
+          <p className="text-sm text-slate-500">Top 5 lowest margin sales per associate (by {yearA || "selected year"})</p>
+        </div>
+        {lowMarginData.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Salesperson</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Sale ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Total</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Profit</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Margin %</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-200">
+                {lowMarginData.map((row, idx) => (
+                  <tr key={idx} className={row.marginPct !== null && row.marginPct < 10 ? "bg-red-50" : ""}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{row.salesperson}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{row.saleId}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{row.saleDate}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${row.grandTotal.toLocaleString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${row.profit.toLocaleString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      {row.marginPct !== null ? `${row.marginPct.toFixed(1)}%` : "N/A"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">No low margin data available.</p>
+        )}
       </div>
 
       {/* Filters */}
