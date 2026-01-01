@@ -196,18 +196,7 @@ const SalesDashboard: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (!posBackendOk) return;
-    fetchLowMargin({
-      start: yearA ? getYearRange(yearA).start : "2024-01-01",
-      end: yearA ? getYearRange(yearA).endExclusive : "2025-01-01",
-      limitPer: 5,
-      limitTotal: 50,
-      salesperson: salespersonQuery || undefined,
-    })
-      .then((data) => setLowMarginData(data.rows))
-      .catch(() => {});
-  }, [posBackendOk, yearA, salespersonQuery]);
+
 
   useEffect(() => {
     fetchAvailableYears()
@@ -878,8 +867,8 @@ const SalesDashboard: React.FC = () => {
       {/* Lowest Margins per Salesperson */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-slate-800">Lowest Margins per Salesperson</h3>
-          <p className="text-sm text-slate-500">Top 5 lowest margin sales per associate (by {yearA || "selected year"})</p>
+    <h3 className="text-lg font-bold text-slate-800">Lowest Margins per Salesperson</h3>
+    <p className="text-sm text-slate-500">Top 5 lowest margin sales per associate (by selected period)</p>
         </div>
         {lowMarginData.length > 0 ? (
           <div className="overflow-x-auto">
