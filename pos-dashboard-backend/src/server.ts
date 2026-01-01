@@ -241,24 +241,22 @@ app.get("/api/low-margin", async (req, res) => {
         AND p.salesperson <> 'Sales, Store'
         AND ($3::text IS NULL OR p.salesperson ILIKE ('%' || $3 || '%'))
     ),
-    ranked AS (
-      SELECT
-        s.*,
-        row_number() OVER (
-          PARTITION BY salesperson
+        ranked AS (
+          SELECT
+            s.*,
+            ROW_NUMBER() OVER (PARTITION BY salesperson ORDER BY margin_pct ASC) AS rn
+          FROM s
+          WHERE margin_pct BETWEEN -100 AND 100
+        ),
+        filtered AS (
+          SELECT
+            ranked.*,
+            COUNT(*) OVER ()::int AS total_count
+          FROM ranked
+          WHERE rn <= $4
           ORDER BY margin_pct ASC NULLS LAST, profit ASC, grand_total DESC
-        ) AS rn
-      FROM s
-    ),
-    filtered AS (
-      SELECT
-        ranked.*,
-        COUNT(*) OVER ()::int AS total_count
-      FROM ranked
-      WHERE rn <= $4
-      ORDER BY margin_pct ASC NULLS LAST, grand_total DESC
-      LIMIT $5
-    )
+          LIMIT $5
+        )
     SELECT * FROM filtered;
   `;
 
