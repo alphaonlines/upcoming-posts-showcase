@@ -35,7 +35,7 @@ import {
 } from "../services/posBackendApi";
 import { SalesData, StoreData } from "../types";
 
-type CompareMode = "TWO_WEEKS" | "TWO_MONTHS" | "TWO_YEARS";
+type CompareMode = "TWO_DAYS" | "TWO_WEEKS" | "TWO_MONTHS" | "TWO_YEARS";
 
 type SalespersonPoint = SalesData & {
   fullName: string;
@@ -113,6 +113,56 @@ const pctChange = (current: number, previous: number) => {
   return ((current - previous) / previous) * 100;
 };
 
+const generateMonthOptions = () => {
+  const options = [];
+  const now = new Date();
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-US", { year: "numeric", month: "long" });
+    options.push({ value, label });
+  }
+  return options;
+};
+
+const generateWeekOptions = () => {
+  const options = [];
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i * 7);
+    const year = d.getFullYear();
+    const weekNum = Math.ceil((d.getTime() - new Date(year, 0, 1).getTime()) / 604800000);
+    const isoWeek = `${year}-W${String(weekNum).padStart(2, '0')}`;
+    const label = `Week of ${d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    options.push({ value: isoWeek, label });
+  }
+  return options;
+};
+
+const generateDayOptions = () => {
+  const options = [];
+  const now = new Date();
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const value = ymd(d);
+    const label = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+    options.push({ value, label });
+  }
+  return options;
+};
+
+const yearFromYm = (ym: string) => ym.split('-')[0];
+const monthFromYm = (ym: string) => ym.split('-')[1];
+const yearOptions = ['2023', '2024', '2025'];
+const monthOptions = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+const dayOptions = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
+
+const yearFromYmd = (ymd: string) => ymd.split('-')[0];
+const monthFromYmd = (ymd: string) => ymd.split('-')[1];
+const dayFromYmd = (ymd: string) => ymd.split('-')[2];
+
 const isValidYm = (v: string) => /^\d{4}-\d{2}$/.test(v);
 const isValidIsoWeek = (v: string) => /^\d{4}-W\d{2}$/.test(v);
 
@@ -120,10 +170,19 @@ const safeDiv = (n: number, d: number) => (Number.isFinite(n) && Number.isFinite
 
 const salespersonLabel = (fullName: string) => {
   const s = String(fullName || "").trim();
-  if (!s) return "";
-  if (s.includes(",")) return s.split(",")[0].trim();
-  const parts = s.split(/\s+/).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : s;
+  if (!s) return "UNK";
+  let first = "", last = "";
+  if (s.includes(",")) {
+    const [l, f] = s.split(",").map(p => p.trim());
+    last = l || "";
+    first = f || "";
+  } else {
+    const parts = s.split(/\s+/).filter(Boolean);
+    if (parts.length > 0) first = parts[0];
+    if (parts.length > 1) last = parts[parts.length - 1];
+  }
+  const initials = ((first[0] || "") + (last[0] || "")).toUpperCase();
+  return initials || "UNK";
 };
 
 const SalesDashboard: React.FC = () => {
@@ -136,22 +195,21 @@ const SalesDashboard: React.FC = () => {
   const [compareHint, setCompareHint] = useState("");
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [yearA, setYearA] = useState<number>(() => new Date().getFullYear());
-  const [yearB, setYearB] = useState<number | null>(() => new Date().getFullYear() - 1);
+  const [yearB, setYearB] = useState<number | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<string>(() => currentIsoWeek());
-  const [compareWeek, setCompareWeek] = useState<string>(() => currentIsoWeek());
+  const [compareWeek, setCompareWeek] = useState<string>("");
+  const [selectedDay, setSelectedDay] = useState<string>(ymd(new Date()));
+  const [compareDay, setCompareDay] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const d = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
-  const [compareMonth, setCompareMonth] = useState<string>(() => {
-    const now = new Date();
-    const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    return addMonthsYm(current, -1);
-  });
+  const [compareMonth, setCompareMonth] = useState<string>("");
   const [salespersonQuery, setSalespersonQuery] = useState("");
   const [trendStart, setTrendStart] = useState<string>(() => {
     const now = new Date();
-    return ymd(new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)));
+    return ymd(new Date(Date.UTC(now.getFullYear(), now.getMonth() - 6, 1)));
   });
   const [trendEnd, setTrendEnd] = useState<string>(() => ymd(new Date()));
   const [loading, setLoading] = useState(true);
@@ -250,6 +308,15 @@ const SalesDashboard: React.FC = () => {
         } else {
           setCompareHint("");
         }
+      } else if (compareMode === "TWO_DAYS") {
+        if (!selectedDay) throw new Error("Invalid Day A");
+        currentRange = { start: selectedDay, endExclusive: addDaysYmd(selectedDay, 1) };
+        if (compareDay) {
+          compareRange = { start: compareDay, endExclusive: addDaysYmd(compareDay, 1) };
+          setCompareHint(`vs ${compareDay}`);
+        } else {
+          setCompareHint("");
+        }
       } else if (compareMode === "TWO_YEARS") {
         if (!Number.isFinite(yearA)) throw new Error("Invalid Year A");
         currentRange = getYearRange(yearA);
@@ -286,7 +353,7 @@ const SalesDashboard: React.FC = () => {
         compareRange
           ? fetchFinanceSummary({ start: compareRange.start, end: compareRange.endExclusive, salesperson })
           : Promise.resolve(null),
-        fetchLowMargin({ start: currentRange.start, end: currentRange.endExclusive, limitPer: 5, limitTotal: 50, salesperson }),
+        fetchLowMargin({ start: trendStart, end: addDaysYmd(trendEnd, 1), limitPer: 5, limitTotal: 50, salesperson }),
       ]);
 
       setSalesData(
@@ -379,7 +446,7 @@ const SalesDashboard: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [compareMode, selectedWeek, compareWeek, selectedMonth, compareMonth, yearA, yearB, salespersonQuery]);
+  }, [compareMode, selectedDay, compareDay, selectedWeek, compareWeek, selectedMonth, compareMonth, yearA, yearB, salespersonQuery, trendStart, trendEnd]);
 
   const loadTrend = async () => {
     const salesperson = salespersonQuery.trim() ? salespersonQuery.trim() : undefined;
@@ -600,34 +667,81 @@ const SalesDashboard: React.FC = () => {
             onChange={(e) => setCompareMode(e.target.value as CompareMode)}
             className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
           >
-            <option value="TWO_MONTHS">Compare Two Months</option>
+            <option value="TWO_DAYS">Compare Two Days</option>
             <option value="TWO_WEEKS">Compare Two Weeks</option>
+            <option value="TWO_MONTHS">Compare Two Months</option>
             <option value="TWO_YEARS">Compare Two Years</option>
           </select>
-          {compareMode === "TWO_WEEKS" ? (
+          {compareMode === "TWO_DAYS" ? (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Day A</label>
+                <select
+                  value={selectedDay}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") return;
+                    setSelectedDay(v);
+                  }}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                >
+                  {generateDayOptions().map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Day B (optional)</label>
+                <select
+                  value={compareDay}
+                  onChange={(e) => setCompareDay(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                >
+                  <option value="">—</option>
+                  {generateDayOptions().map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : compareMode === "TWO_WEEKS" ? (
             <div className="mt-3 grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Week A</label>
-                <input
-                  type="week"
+                <select
                   value={selectedWeek}
                   onChange={(e) => {
                     const v = e.target.value;
                     if (v === "") return; // don't allow clearing Week A
-                    if (!isValidIsoWeek(v)) return;
                     setSelectedWeek(v);
                   }}
                   className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-                />
+                >
+                  {generateWeekOptions().map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Week B (optional)</label>
-                <input
-                  type="week"
+                <select
                   value={compareWeek}
                   onChange={(e) => setCompareWeek(e.target.value)}
                   className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-                />
+                >
+                  <option value="">—</option>
+                  {generateWeekOptions().map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           ) : compareMode === "TWO_YEARS" ? (
@@ -639,7 +753,7 @@ const SalesDashboard: React.FC = () => {
                   onChange={(e) => setYearA(Number(e.target.value))}
                   className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
                 >
-                  {(availableYears.length ? availableYears : [yearA]).map((y) => (
+                  {(availableYears.length ? [...availableYears, 2023] : [yearA, 2023]).map((y) => (
                     <option key={y} value={String(y)}>
                       {y}
                     </option>
@@ -654,7 +768,7 @@ const SalesDashboard: React.FC = () => {
                   className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
                 >
                   <option value="">—</option>
-                  {(availableYears.length ? availableYears : yearB === null ? [] : [yearB]).map((y) => (
+                  {(availableYears.length ? [...availableYears, 2023] : yearB === null ? [2023] : [yearB, 2023]).map((y) => (
                     <option key={y} value={String(y)}>
                       {y}
                     </option>
@@ -664,28 +778,67 @@ const SalesDashboard: React.FC = () => {
             </div>
           ) : (
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Month A</label>
-                <input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "") return; // don't allow clearing Month A
-                    if (!isValidYm(v)) return;
-                    setSelectedMonth(v);
-                  }}
-                  className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Year</label>
+                  <select
+                    value={yearFromYm(selectedMonth)}
+                    onChange={(e) => setSelectedMonth(`${e.target.value}-${monthFromYm(selectedMonth)}`)}
+                    className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                  >
+                    {yearOptions.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Month</label>
+                  <select
+                    value={monthFromYm(selectedMonth)}
+                    onChange={(e) => setSelectedMonth(`${yearFromYm(selectedMonth)}-${e.target.value}`)}
+                    className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                  >
+                    {monthOptions.map((m) => (
+                      <option key={m} value={m}>
+                        {new Date(2024, parseInt(m) - 1, 1).toLocaleDateString("en-US", { month: "long" })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Month B (optional)</label>
-                <input
-                  type="month"
-                  value={compareMonth}
-                  onChange={(e) => setCompareMonth(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Year</label>
+                  <select
+                    value={compareMonth ? yearFromYm(compareMonth) : ""}
+                    onChange={(e) => setCompareMonth(e.target.value && monthFromYm(compareMonth || selectedMonth) ? `${e.target.value}-${monthFromYm(compareMonth || selectedMonth)}` : "")}
+                    className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                  >
+                    <option value="">—</option>
+                    {yearOptions.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Month</label>
+                  <select
+                    value={compareMonth ? monthFromYm(compareMonth) : ""}
+                    onChange={(e) => setCompareMonth(e.target.value && yearFromYm(compareMonth || selectedMonth) ? `${yearFromYm(compareMonth || selectedMonth)}-${e.target.value}` : "")}
+                    className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                  >
+                    <option value="">—</option>
+                    {monthOptions.map((m) => (
+                      <option key={m} value={m}>
+                        {new Date(2024, parseInt(m) - 1, 1).toLocaleDateString("en-US", { month: "long" })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           )}
@@ -772,7 +925,7 @@ const SalesDashboard: React.FC = () => {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={salesData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                 <CartesianGrid stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b" }} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b" }} interval={0} />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
@@ -837,28 +990,122 @@ const SalesDashboard: React.FC = () => {
       {/* Trend */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-slate-800">Sales Trend</h3>
-            <p className="text-sm text-slate-500">Pick a date range (independent of compare)</p>
-          </div>
+           <div>
+             <h3 className="text-lg font-bold text-slate-800">Sales Trend</h3>
+             <p className="text-sm text-slate-500">Pick a date range (independent of compare)</p>
+             <div className="flex flex-wrap gap-2 mt-2">
+               {[
+                 { label: "Last 7 Days", days: 7 },
+                 { label: "Last 30 Days", days: 30 },
+                 { label: "Last 3 Months", days: 90 },
+                 { label: "Last 6 Months", days: 180 },
+                 { label: "Last Year", days: 365 },
+               ].map((preset) => (
+                 <button
+                   key={preset.label}
+                   onClick={() => {
+                     if (preset.days) {
+                       const end = new Date();
+                       const start = new Date(end.getTime() - preset.days * 24 * 60 * 60 * 1000);
+                       setTrendStart(ymd(start));
+                       setTrendEnd(ymd(end));
+                     }
+                   }}
+                   className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors"
+                 >
+                   {preset.label}
+                 </button>
+               ))}
+             </div>
+           </div>
           <div className="flex flex-col sm:flex-row gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Start</label>
-              <input
-                type="date"
-                value={trendStart}
-                onChange={(e) => setTrendStart(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-              />
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Start Year</label>
+                <select
+                  value={yearFromYmd(trendStart)}
+                  onChange={(e) => setTrendStart(`${e.target.value}-${monthFromYmd(trendStart)}-${dayFromYmd(trendStart)}`)}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                >
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Month</label>
+                <select
+                  value={monthFromYmd(trendStart)}
+                  onChange={(e) => setTrendStart(`${yearFromYmd(trendStart)}-${e.target.value}-${dayFromYmd(trendStart)}`)}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                >
+                  {monthOptions.map((m) => (
+                    <option key={m} value={m}>
+                      {new Date(2024, parseInt(m) - 1, 1).toLocaleDateString("en-US", { month: "short" })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Day</label>
+                <select
+                  value={dayFromYmd(trendStart)}
+                  onChange={(e) => setTrendStart(`${yearFromYmd(trendStart)}-${monthFromYmd(trendStart)}-${e.target.value}`)}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                >
+                  {dayOptions.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">End</label>
-              <input
-                type="date"
-                value={trendEnd}
-                onChange={(e) => setTrendEnd(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-              />
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">End Year</label>
+                <select
+                  value={yearFromYmd(trendEnd)}
+                  onChange={(e) => setTrendEnd(`${e.target.value}-${monthFromYmd(trendEnd)}-${dayFromYmd(trendEnd)}`)}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                >
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Month</label>
+                <select
+                  value={monthFromYmd(trendEnd)}
+                  onChange={(e) => setTrendEnd(`${yearFromYmd(trendEnd)}-${e.target.value}-${dayFromYmd(trendEnd)}`)}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                >
+                  {monthOptions.map((m) => (
+                    <option key={m} value={m}>
+                      {new Date(2024, parseInt(m) - 1, 1).toLocaleDateString("en-US", { month: "short" })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Day</label>
+                <select
+                  value={dayFromYmd(trendEnd)}
+                  onChange={(e) => setTrendEnd(`${yearFromYmd(trendEnd)}-${monthFromYmd(trendEnd)}-${e.target.value}`)}
+                  className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                >
+                  {dayOptions.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -898,7 +1145,7 @@ const SalesDashboard: React.FC = () => {
       {/* Lowest Margins per Salesperson */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-slate-800">Lowest Margins per Salesperson</h3>
+          <h3 className="text-lg font-bold text-slate-800">Lowest Margins per Salesperson (Trend Dates)</h3>
           <p className="text-sm text-slate-500">Top 5 lowest margin sales per associate (by selected period) - Click headers to sort</p>
         </div>
         {sortedLowMarginData.length > 0 ? (
