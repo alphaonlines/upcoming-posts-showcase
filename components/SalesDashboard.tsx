@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -334,19 +334,7 @@ const SalesDashboard: React.FC = () => {
         });
       }
 
-      setLowMarginData(lowMarginRows.rows.sort((a, b) => {
-        const aVal = a[lowMarginSort.column as keyof typeof a];
-        const bVal = b[lowMarginSort.column as keyof typeof b];
-        let cmp = 0;
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-          cmp = aVal.localeCompare(bVal);
-        } else if (typeof aVal === 'number' && typeof bVal === 'number') {
-          cmp = aVal - bVal;
-        } else if (aVal === null || bVal === null) {
-          cmp = aVal === null ? (bVal === null ? 0 : 1) : -1;
-        }
-        return lowMarginSort.direction === 'asc' ? cmp : -cmp;
-      }));
+      setLowMarginData(lowMarginRows.rows);
     } catch (e) {
       console.error(e);
       setError("Couldn’t load POS data. Confirm the backend API is running on http://127.0.0.1:5055.");
@@ -897,42 +885,59 @@ const SalesDashboard: React.FC = () => {
           <h3 className="text-lg font-bold text-slate-800">Lowest Margins per Salesperson</h3>
           <p className="text-sm text-slate-500">Top 5 lowest margin sales per associate (by selected period) - Click headers to sort</p>
         </div>
-        {lowMarginData.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100" onClick={() => setLowMarginSort(prev => ({ column: 'salesperson', direction: prev.column === 'salesperson' && prev.direction === 'asc' ? 'desc' : 'asc' }))}>
-                    Salesperson {lowMarginSort.column === 'salesperson' && (lowMarginSort.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Sale ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Total</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Profit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100" onClick={() => setLowMarginSort(prev => ({ column: 'marginPct', direction: prev.column === 'marginPct' && prev.direction === 'asc' ? 'desc' : 'asc' }))}>
-                    Margin % {lowMarginSort.column === 'marginPct' && (lowMarginSort.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-slate-200">
-                {lowMarginData.map((row, idx) => (
-                  <tr key={idx} className={row.marginPct !== null && row.marginPct < 10 ? "bg-red-50" : ""}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{row.salesperson}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{row.saleId}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{row.saleDate}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${row.grandTotal.toLocaleString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${row.profit.toLocaleString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                      {row.marginPct !== null ? `${row.marginPct.toFixed(1)}%` : "N/A"}
-                    </td>
+        {(() => {
+          const sortedData = useMemo(() => {
+            return [...lowMarginData].sort((a, b) => {
+              const aVal = a[lowMarginSort.column as keyof typeof a];
+              const bVal = b[lowMarginSort.column as keyof typeof b];
+              let cmp = 0;
+              if (typeof aVal === 'string' && typeof bVal === 'string') {
+                cmp = aVal.localeCompare(bVal);
+              } else if (typeof aVal === 'number' && typeof bVal === 'number') {
+                cmp = aVal - bVal;
+              } else if (aVal === null || bVal === null) {
+                cmp = aVal === null ? (bVal === null ? 0 : 1) : -1;
+              }
+              return lowMarginSort.direction === 'asc' ? cmp : -cmp;
+            });
+          }, [lowMarginData, lowMarginSort]);
+          return sortedData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100" onClick={() => setLowMarginSort(prev => ({ column: 'salesperson', direction: prev.column === 'salesperson' && prev.direction === 'asc' ? 'desc' : 'asc' }))}>
+                      Salesperson {lowMarginSort.column === 'salesperson' && (lowMarginSort.direction === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Sale ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Total</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Profit</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100" onClick={() => setLowMarginSort(prev => ({ column: 'marginPct', direction: prev.column === 'marginPct' && prev.direction === 'asc' ? 'desc' : 'asc' }))}>
+                      Margin % {lowMarginSort.column === 'marginPct' && (lowMarginSort.direction === 'asc' ? '↑' : '↓')}
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">No low margin data available.</p>
-        )}
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-200">
+                  {sortedData.map((row, idx) => (
+                    <tr key={idx} className={row.marginPct !== null && row.marginPct < 10 ? "bg-red-50" : ""}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{row.salesperson}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{row.saleId}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{row.saleDate}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${row.grandTotal.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${row.profit.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                        {row.marginPct !== null ? `${row.marginPct.toFixed(1)}%` : "N/A"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">No low margin data available.</p>
+          );
+        })()}
       </div>
 
       {/* Filters */}
