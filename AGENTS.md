@@ -174,3 +174,12 @@ For PRs: include a short summary, linked issues, manual test steps, and screensh
 - Do not commit secrets: use `.env.local` for local-only keys.
 - Gemini: `.env.local` currently uses `GEMINI_API_KEY`, while `services/geminiService.ts` reads `process.env.API_KEY`; keep these consistent when contributing (and remember Vite only exposes `VITE_*` vars to the browser by default).
 - Firebase: config placeholders live in `services/firebase.ts`; replacing them enables live mode, otherwise the app runs in mock-data mode.
+
+## Recent Changes (2026-01-31)
+- Moved FD public pages to subdomain: https://furnituredistributors.wolf.discount/
+- Added redirects from https://wolf.discount/furnituredistributors/* and /fd/ to the new subdomain.
+- Enabled /fd/ app on the subdomain with /fd/api/* routed to :5057.
+- Added quick-links index page on the subdomain root with a dashboard button.
+- Bedroom page restored with mobile-friendly stacking only (no snow effect).
+- Added CSV upload modal button to FD dashboard (/fd/) gated by dashboard unlock; posts to /fd-upload-csv.
+- Nginx now listens on 0.0.0.0:80/443 and :443/:80 IPv6; SSL issued for subdomain.

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, CheckSquare, MessageSquare, Menu, Bell, Sofa, Search, Activity, Star } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, MessageSquare, Menu, Bell, Sofa, Search, Activity, Star, X } from 'lucide-react';
 import SalesDashboard from './components/SalesDashboard';
 import TaskManager from './components/TaskManager';
 import WorkAdvertising from './components/WorkAdvertising';
@@ -12,7 +12,7 @@ enum Tab {
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.OVERVIEW);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const renderContent = () => {
     switch(activeTab) {
@@ -27,10 +27,10 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
       
       {/* Sidebar */}
-      <aside 
-        className={`${sidebarOpen ? 'w-64' : 'w-20'} fixed h-screen bg-slate-900 text-white transition-all duration-300 ease-in-out z-20 flex flex-col`}
+      <aside
+        className={`${sidebarOpen ? 'w-64' : 'w-20'} fixed h-screen bg-slate-900 text-white transition-all duration-300 ease-in-out z-20 flex flex-col md:relative md:translate-x-0 ${sidebarOpen ? 'left-0' : 'md:left-0 -left-64 md:w-20'}`}
       >
-        <div className="h-20 flex items-center justify-center border-b border-slate-800">
+        <div className="h-20 flex items-center justify-between px-4 border-b border-slate-800">
            {sidebarOpen ? (
              <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
                <Sofa className="text-blue-400" />
@@ -38,6 +38,14 @@ const App: React.FC = () => {
              </div>
            ) : (
              <Sofa className="text-blue-400" size={28} />
+           )}
+           {sidebarOpen && (
+             <button
+               onClick={() => setSidebarOpen(false)}
+               className="md:hidden p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+             >
+               <X size={20} />
+             </button>
            )}
         </div>
 
@@ -100,7 +108,7 @@ const App: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
+      <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'md:ml-64 ml-0' : 'md:ml-20 ml-0'}`}>
         
         {/* Top Header */}
         <header className="h-20 bg-white border-b border-slate-200 sticky top-0 z-10 px-8 flex items-center justify-between">
